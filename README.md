@@ -1,7 +1,7 @@
 # zolo
 **Zolo For Solo, A Crypto Quantative Profolio Manager.**
 
-> 交易是孤独者的工作，独行侠
+> 交易是孤独者的工作
 
 ## Zolo 设计目标及原则
 - Crypto投资组合管理器
