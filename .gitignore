@@ -127,3 +127,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+.idea
+*.sqlite3
+*.csv
+*.png
+*.jpg
+logs/
+/params.json
+!/.ssh/id_rsa
+!/.ssh/
