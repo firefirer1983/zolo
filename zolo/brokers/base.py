@@ -13,7 +13,7 @@ from ..hub import evt_hub
 from ..utils import create_filter
 from ..dtypes import Trade
 from ..consts import BUY, SELL, RESTFUL, AIAO, ON_TICK, ON_BAR, ON_TRADE, \
-    ON_BOOK, LONG, DEFAULT_LEVERAGE
+    ON_BOOK, LONG, DEFAULT_LEVERAGE, BLOCKING_ORDER_TIMEOUT
 from .context import TradingContext
 from ..benchmarks import TradeCounter, TimeReturn, ProfitFactor, SharpRatio, \
     Benchmark, BenchmarkType
@@ -35,7 +35,7 @@ class BrokerBase(Broker):
         self._exchange = exchange
         self._market = market
         self._adapter_type = adapter_type
-        # 提供 default context, default context无法进行交易, 只能获取公共数据
+        # 提供 default context, default context无法进行交易, 只能获取数据
         self._context: Optional[TradingContext] = None
     
     @property
@@ -72,7 +72,9 @@ class BrokerBase(Broker):
     def get_all_instruments(self) -> Dict[str, InstrumentInfo]:
         return self.context.adapter.get_all_instruments()
     
-    def get_tick(self, instrument_id: str) -> Tick:
+    def get_tick(self, instrument_id: str = "") -> Tick:
+        if not instrument_id:
+            instrument_id = self.context.instrument_id
         return self.context.adapter.get_tick(instrument_id)
     
     def get_ticks(self, *instruments, pricing: str = "avg") -> List[Tick]:
@@ -222,8 +224,8 @@ class BrokerBase(Broker):
     
     def buy_market(
         self,
-        timeout: float,
         qty: Qty,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -241,8 +243,8 @@ class BrokerBase(Broker):
     
     def sell_market(
         self,
-        timeout: float,
         qty: Qty,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -259,8 +261,10 @@ class BrokerBase(Broker):
         return self.post_order(post, timeout, step=step, period=period)
     
     def buy_limit(
-        self, price: float, qty: Qty,
-        timeout: float = 0
+        self,
+        price: float,
+        qty: Qty,
+        timeout: float
     ) -> Order:
         post = LimitOrder(
             self.exchange,
@@ -275,8 +279,10 @@ class BrokerBase(Broker):
         return self.post_order(post, timeout)
     
     def sell_limit(
-        self, price: float, qty: Qty,
-        timeout: float = 0
+        self,
+        price: float,
+        qty: Qty,
+        timeout: float
     ) -> Order:
         post = LimitOrder(
             self.exchange,
@@ -292,9 +298,9 @@ class BrokerBase(Broker):
     
     def buy_limit_ioc(
         self,
-        timeout: float,
         price: float,
         qty: Qty,
+        timeout: float,
         step: Qty = 0,
         period: float = 0,
     ) -> Order:
@@ -311,9 +317,9 @@ class BrokerBase(Broker):
     
     def sell_limit_ioc(
         self,
-        timeout: float,
         price: float,
         qty: Qty,
+        timeout: float,
         step: Qty = 0,
         period: float = 0,
     ) -> Order:
@@ -330,9 +336,9 @@ class BrokerBase(Broker):
     
     def buy_limit_fok(
         self,
-        timeout: float,
         price: float,
         qty: Qty,
+        timeout: float,
         step: Qty = 0,
         period: float = 0,
     ) -> Order:
@@ -349,9 +355,9 @@ class BrokerBase(Broker):
     
     def sell_limit_fok(
         self,
-        timeout: float,
         price: float,
         qty: Qty,
+        timeout: float,
         step: Qty = 0,
         period: float = 0,
     ) -> Order:
@@ -369,7 +375,7 @@ class BrokerBase(Broker):
     def buy_opponent_ioc(
         self,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -388,7 +394,7 @@ class BrokerBase(Broker):
     def sell_opponent_ioc(
         self,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -407,7 +413,7 @@ class BrokerBase(Broker):
     def buy_opponent_fok(
         self,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -426,7 +432,7 @@ class BrokerBase(Broker):
     def sell_opponent_fok(
         self,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -446,7 +452,7 @@ class BrokerBase(Broker):
         self,
         depth: int,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -467,7 +473,7 @@ class BrokerBase(Broker):
         self,
         depth: int,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -488,7 +494,7 @@ class BrokerBase(Broker):
         self,
         depth: int,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -509,7 +515,7 @@ class BrokerBase(Broker):
         self,
         depth: int,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -576,12 +582,23 @@ class BrokerBase(Broker):
         return self.context.adapter.get_position(
             self.context.instrument_id)
     
-    def get_margin(self) -> Margin:
-        return self.context.adapter.get_margin(
-            self.context.instrument_id)
+    def get_all_position(self) -> List[Position]:
+        return self.context.adapter.get_position("")
     
-    def get_available_balance(self, symbol: str) -> float:
+    def get_margin(self) -> Margin:
+        return self.context.adapter.get_margin(self.context.instrument_id)
+    
+    def get_all_margin(self) -> List[Margin]:
+        return self.context.adapter.get_margin()
+    
+    def get_available_balance(self, symbol: str = "") -> float:
+        if not symbol:
+            symbol = self.info_instrument(
+                self.context.instrument_id).base_currency
         return self.context.adapter.get_available_balance(symbol)
+    
+    def get_all_available_balance(self) -> Dict[str, float]:
+        return self.context.adapter.get_available_balance("")
     
     def transfer_asset_to_future_margin(
         self, symbol: str, amount: float
@@ -602,7 +619,9 @@ class BrokerBase(Broker):
             symbol, amount)
     
     def set_leverage(self, lv: float):
-        return self.context.set_leverage(lv)
+        instrument_id = self.context.instrument_id
+        return self.context.adapter.set_leverage(instrument_id, lv)
     
     def get_leverage(self):
-        return self.context.get_leverage()
+        instrument_id = self.context.instrument_id
+        return self.context.adapter.get_leverage(instrument_id)

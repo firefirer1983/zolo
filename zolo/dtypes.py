@@ -45,17 +45,14 @@ class OrderType:
     OPTIMAL_10_IOC = "OPTIMAL_10_IOC"
     OPTIMAL_15_IOC = "OPTIMAL_15_IOC"
     OPTIMAL_20_IOC = "OPTIMAL_20_IOC"
-    OPTIMAL_25_IOC = "OPTIMAL_25_IOC"
     OPTIMAL_5_FOK = "OPTIMAL_5_FOK"
     OPTIMAL_10_FOK = "OPTIMAL_10_FOK"
     OPTIMAL_15_FOK = "OPTIMAL_15_FOK"
     OPTIMAL_20_FOK = "OPTIMAL_20_FOK"
-    OPTIMAL_25_FOK = "OPTIMAL_25_FOK"
     OPTIMAL_5_GTC = "OPTIMAL_5_GTC"
     OPTIMAL_10_GTC = "OPTIMAL_10_GTC"
     OPTIMAL_15_GTC = "OPTIMAL_15_GTC"
     OPTIMAL_20_GTC = "OPTIMAL_20_GTC"
-    OPTIMAL_25_GTC = "OPTIMAL_25_GTC"
 
 
 @dataclass(frozen=True)
@@ -102,7 +99,7 @@ class Position:
 class Margin:
     exchange: str
     market: str
-    instrument_id: str
+    symbol: str
     wallet_balance: float
     unrealised_pnl: float
     realised_pnl: float
@@ -110,6 +107,7 @@ class Margin:
     maint_margin: float
     margin_balance: float
     leverage: float
+    liquidation_price: float
     
     @property
     def market_id(self):
@@ -122,13 +120,14 @@ class Margin:
     def __repr__(self):
         return f"""
         Margin(
+            symbol: {self.symbol}
             wallet_balance: {self.wallet_balance: .6f}
             unrealised_pnl: {self.unrealised_pnl: .6f}
             realised_pnl: {self.realised_pnl: .6f}
             init_margin: {self.init_margin}
             maint_margin: {self.maint_margin}
-            instrument_id: {self.instrument_id}
             margin_balance: {self.margin_balance: .6f}
+            liquidation_price: {self.liquidation_price: .5f}
         )
         """
 
@@ -508,7 +507,7 @@ def by_size(qty: Qty) -> bool:
 CURRENCY_EMPTY = "INVALID_CURRENCY"
 POSITION_EMPTY = Position("", "", "", 0.0, 0.0, 0.0, 0.0, 0.0, DEFAULT_LEVERAGE)
 MARGIN_EMPTY = Margin("", "", "", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                      DEFAULT_LEVERAGE)
+                      DEFAULT_LEVERAGE, float("inf"))
 TICK_EMPTY = Tick("", "", "", UNIX_EPOCH, 0)
 CREDENTIAL_EMPTY = Credential("", "", "")
 ORDER_BOOK_EMPTY = OrderBook(

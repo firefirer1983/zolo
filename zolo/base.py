@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Iterable, ItemsView, Union, Type, Callable, Dict
 import logging
 
+from zolo.consts import BLOCKING_ORDER_TIMEOUT
 from .dtypes import Timer, Message
 from .hub import evt_hub
 from .utils import create_timer, create_filter
@@ -229,7 +230,7 @@ class Broker(ABC):
         pass
 
     @abstractmethod
-    def get_tick(self, instrument_id: str) -> Tick:
+    def get_tick(self, instrument_id: str = "") -> Tick:
         pass
     
     @abstractmethod
@@ -237,7 +238,7 @@ class Broker(ABC):
         pass
     
     @abstractmethod
-    def get_available_balance(self, instrument_id: str) -> float:
+    def get_available_balance(self, instrument_id: str = "") -> float:
         pass
 
     @abstractmethod
@@ -348,8 +349,8 @@ class Broker(ABC):
     @abstractmethod
     def buy_market(
         self,
-        timeout: float,
         qty: Qty,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -359,8 +360,8 @@ class Broker(ABC):
     @abstractmethod
     def sell_market(
         self,
-        timeout: float,
         qty: Qty,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -369,24 +370,28 @@ class Broker(ABC):
 
     @abstractmethod
     def buy_limit(
-        self, price: float, qty: Qty,
-        timeout: float = 0
+        self,
+        price: float,
+        qty: Qty,
+        timeout: float
     ) -> Order:
         pass
 
     @abstractmethod
     def sell_limit(
-        self, price: float, qty: Qty,
-        timeout: float = 0
+        self,
+        price: float,
+        qty: Qty,
+        timeout: float
     ) -> str:
         pass
 
     @abstractmethod
     def buy_limit_ioc(
         self,
-        timeout: float,
         price: float,
         qty: Qty,
+        timeout: float,
         step: Qty = 0,
         period: float = 0,
     ) -> Order:
@@ -395,9 +400,9 @@ class Broker(ABC):
     @abstractmethod
     def sell_limit_ioc(
         self,
-        timeout: float,
         price: float,
         qty: Qty,
+        timeout: float,
         step: Qty = 0,
         period: float = 0,
     ) -> Order:
@@ -406,9 +411,9 @@ class Broker(ABC):
     @abstractmethod
     def buy_limit_fok(
         self,
-        timeout: float,
         price: float,
         qty: Qty,
+        timeout: float,
         step: Qty = 0,
         period: float = 0,
     ) -> Order:
@@ -417,9 +422,9 @@ class Broker(ABC):
     @abstractmethod
     def sell_limit_fok(
         self,
-        timeout: float,
         price: float,
         qty: Qty,
+        timeout: float,
         step: Qty = 0,
         period: float = 0,
     ) -> Order:
@@ -429,7 +434,7 @@ class Broker(ABC):
     def buy_opponent_ioc(
         self,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -440,7 +445,7 @@ class Broker(ABC):
     def sell_opponent_ioc(
         self,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -451,7 +456,7 @@ class Broker(ABC):
     def buy_opponent_fok(
         self,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -462,7 +467,7 @@ class Broker(ABC):
     def sell_opponent_fok(
         self,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -474,7 +479,7 @@ class Broker(ABC):
         self,
         depth: int,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -486,7 +491,7 @@ class Broker(ABC):
         self,
         depth: int,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -498,7 +503,7 @@ class Broker(ABC):
         self,
         depth: int,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,
@@ -510,7 +515,7 @@ class Broker(ABC):
         self,
         depth: int,
         qty: Qty,
-        timeout: float = 0,
+        timeout: float = BLOCKING_ORDER_TIMEOUT,
         slippage: float = 0,
         step: Qty = 0,
         period: float = 0,

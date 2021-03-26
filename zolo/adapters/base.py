@@ -1,5 +1,5 @@
 from abc import abstractmethod, ABC
-from typing import Union, Tuple, List, Dict
+from typing import Union, Tuple, List, Dict, Optional
 
 from zolo.consts import MAX_INT
 from zolo.posts import OrderPost
@@ -69,23 +69,29 @@ class Adapter(ABC):
         pass
     
     @abstractmethod
-    def transfer_margin_to_asset(self, symbol: str, amount: float):
+    def transfer_margin_to_asset(self, symbol: str, amount: float) -> float:
         pass
     
     @abstractmethod
-    def transfer_asset_to_future_margin(self, symbol: str, amount: float):
+    def transfer_asset_to_future_margin(
+        self, symbol: str, amount: float) -> float:
         pass
     
     @abstractmethod
-    def transfer_asset_to_swap_margin(self, symbol: str, amount: float):
+    def transfer_asset_to_swap_margin(
+        self, symbol: str, amount: float) -> float:
         pass
     
     @abstractmethod
-    def get_margin(self, instrument_id: str) -> Margin:
+    def get_margin(
+        self, instrument_id: str = ""
+    ) -> Union[List[Margin], Margin]:
         pass
     
     @abstractmethod
-    def get_position(self, instrument_id: str) -> Position:
+    def get_position(
+        self, instrument_id: str = ""
+    ) -> Union[Position, List[Position]]:
         pass
     
     @abstractmethod
@@ -141,7 +147,9 @@ class Adapter(ABC):
         pass
     
     @abstractmethod
-    def get_available_balance(self, symbol: str) -> float:
+    def get_available_balance(
+        self, symbol: str = ""
+    ) -> Union[Dict[str, float], float]:
         pass
     
     @abstractmethod

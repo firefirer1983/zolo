@@ -15,11 +15,15 @@ log = logging.getLogger(__name__)
 
 class CryptoBroker(BrokerBase):
     
-    def __init__(self, exchange: str, market: str, gateway: str = RESTFUL):
+    def __init__(
+        self, exchange: str, market: str,
+        credential: Credential = CREDENTIAL_EMPTY, gateway: str = RESTFUL
+    ):
         super().__init__(exchange, market, gateway)
+        
         self._context = TradingContext(
             "default", exchange, market, INVALID,
-            POSITION_SIDE_EMPTY, gateway, AIAO, CREDENTIAL_EMPTY)
+            POSITION_SIDE_EMPTY, gateway, AIAO, credential)
     
     def on_order(self, order: Order):
         if order.state == OrderStatus.FULFILLED:

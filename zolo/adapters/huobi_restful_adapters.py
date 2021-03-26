@@ -3,7 +3,7 @@ import math
 from decimal import Decimal
 from functools import partial
 from pprint import pprint
-from typing import Dict, Tuple, Union, List
+from typing import Dict, Tuple, Union, List, Optional
 
 from zolo.dtypes import Lot, CREDENTIAL_EMPTY, POSITION_EMPTY, MARGIN_EMPTY
 from zolo.posts import OrderPostType, MarketOrder, LimitOrder, LimitIocOrder, \
@@ -119,11 +119,11 @@ class HuobiRestfulCoinMarginSwap(HuobiRestfulAdapter, market="swap@coin"):
         self._client = HuobiCoinMarginSwap(
             self.credential.api_key, self.credential.secret_key
         )
-
+    
     @property
     def max_optimal_depth(self) -> int:
         return MAX_OPTIMAL_DEPTH
-   
+    
     def get_instrument_info(self, instrument_id: str):
         raise NotImplementedError
 
@@ -149,6 +149,7 @@ class HuobiRestfulCoinMarginFuture(HuobiRestfulAdapter, market="future@coin"):
     def estimate_lot(
         self, instrument_id: str, size: float, price: float = 0
     ) -> Lot:
+        instrument_id = instrument_id.upper()
         contract_value = float(
             self._instrument_registry[instrument_id].contract_value)
         return Lot(int(size * price / contract_value))
@@ -160,11 +161,11 @@ class HuobiRestfulCoinMarginFuture(HuobiRestfulAdapter, market="future@coin"):
         self._instrument_registry = self.get_all_instruments()
         self._leverage = DEFAULT_LEVERAGE
         assert self._instrument_registry
-
+    
     @property
     def max_optimal_depth(self) -> int:
         return MAX_OPTIMAL_DEPTH
-
+    
     def get_tick(self, instrument_id) -> Tick:
         try:
             res = self._client.get_ticker(instrument_id)
@@ -184,7 +185,7 @@ class HuobiRestfulCoinMarginFuture(HuobiRestfulAdapter, market="future@coin"):
             instrument_id=instrument_id,
             price=float(price),
         )
-
+    
     def get_ticks(self, *instruments, pricing: str = "avg") -> List[Tick]:
         try:
             res = self._client.get_market_detail_merged()
@@ -210,7 +211,7 @@ class HuobiRestfulCoinMarginFuture(HuobiRestfulAdapter, market="future@coin"):
             ))
         return ret
     
-    def transfer_margin_to_asset(self, symbol: str, amount: float):
+    def transfer_margin_to_asset(self, symbol: str, amount: float) -> float:
         amount = str(round_down(8, amount))
         try:
             res = self._client.transfer_margin_to_asset(symbol, amount)
@@ -220,7 +221,8 @@ class HuobiRestfulCoinMarginFuture(HuobiRestfulAdapter, market="future@coin"):
         except Exception as e:
             log.exception(e)
             raise AssetTransferError
-        
+        return float(amount)
+    
     def transfer_asset_to_future_margin(self, symbol: str, amount: float):
         raise NotImplementedError(f"asset to margin is not avail in future "
                                   f"adapter")
@@ -326,6 +328,12 @@ class HuobiRestfulCoinMarginFuture(HuobiRestfulAdapter, market="future@coin"):
                 return OrderType.OPTIMAL_10_GTC
             elif r == "optimal_20":
                 return OrderType.OPTIMAL_20_GTC
+            elif r == "optimal_5_fok":
+                return OrderType.OPTIMAL_5_FOK
+            elif r == "optimal_10_fok":
+                return OrderType.OPTIMAL_10_FOK
+            elif r == "optimal_20_fok":
+                return OrderType.OPTIMAL_20_FOK
             else:
                 raise NotImplementedError
         else:
@@ -362,7 +370,7 @@ class HuobiRestfulCoinMarginFuture(HuobiRestfulAdapter, market="future@coin"):
             return f"optimal_{post.depth}_ioc"
         else:
             raise NotImplementedError
-
+    
     @staticmethod
     def _get_direction_and_offset(post: OrderPostType) -> Tuple[str, str]:
         post: LimitOrder = post
@@ -412,28 +420,26 @@ class HuobiRestfulCoinMarginFuture(HuobiRestfulAdapter, market="future@coin"):
             return OrderStatus.CANCELING
         else:
             raise NotImplementedError
-    
+
     def get_leverage(self, instrument_id: str) -> float:
         log.warning(f"all the future@coin use one leverage")
         assert instrument_id
         instrument_id = instrument_id.upper()
         mrg = self.get_margin(instrument_id)
         if mrg != MARGIN_EMPTY:
-            self._leverage = mrg.leverage
+            self._leverage = int(mrg.leverage)
         return self._leverage
-    
+
     def set_leverage(self, instrument_id: str, lv: float):
         log.warning(f"all the future@coin use one leverage")
         assert instrument_id
         instrument_id = instrument_id.upper()
         base_sym = self._instrument_registry[instrument_id].base_currency
-        self._leverage = lv
-        self._client.post_contract_switch_lever_rate(base_sym, int(lv))
+        self._leverage = int(lv)
+        self._client.post_contract_switch_lever_rate(base_sym, self._leverage)
     
     def create_order(self, post: OrderPostType) -> str:
-        if self._leverage == DEFAULT_LEVERAGE:
-            raise RuntimeError(f"Please set leverage first!")
-        
+        assert self._leverage != DEFAULT_LEVERAGE
         assert self.exchange == post.exchange and self.market == post.market
         instrument_id = post.instrument_id.upper()
         instrument = self._instrument_registry[instrument_id]
@@ -445,6 +451,7 @@ class HuobiRestfulCoinMarginFuture(HuobiRestfulAdapter, market="future@coin"):
         
         client_oid = create_id_by_timestamp()
         order_type = self.get_order_type(post)
+
         try:
             res = self._client.post_order(
                 contract_code=instrument_id, price=str(price), volume=str(qty),
@@ -503,10 +510,14 @@ class HuobiRestfulCoinMarginFuture(HuobiRestfulAdapter, market="future@coin"):
                 state=status, filled=qty, slippage=0
             )
     
-    def get_position(self, instrument_id: str) -> Position:
-        assert instrument_id
-        instrument_id = instrument_id.upper()
-        base = self._instrument_registry[instrument_id].base_currency
+    def get_position(
+        self, instrument_id: str = ""
+    ) -> Union[List[Position], Position]:
+        if instrument_id:
+            instrument_id = instrument_id.upper()
+            base = self._instrument_registry[instrument_id].base_currency
+        else:
+            base = ""
         try:
             res = self._client.get_contract_position_info(base)
             assert res["status"] == "ok"
@@ -514,53 +525,100 @@ class HuobiRestfulCoinMarginFuture(HuobiRestfulAdapter, market="future@coin"):
         except Exception as e:
             log.exception(e)
             raise PositionGetError
-        pos = POSITION_EMPTY
+        pos = list()
         for r in res:
-            if r["contract_code"] == instrument_id:
-                size = int(res["volume"])
-                if res["direction"] == "sell":
-                    size = -int(res["volume"])
-                home_notional = float(res["last_price"]) * float(res["volume"])
-                pos = Position(
+            direction = r["direction"]
+            volume = int(r["volume"])
+            size = - volume if direction == "sell" else volume
+            avg_entry_price = float(r["cost_hold"])
+            unrealised_pnl = float(r["profit_unreal"])
+            realised_pnl = float(r["profit"]) - unrealised_pnl
+            last_price = float(r["last_price"])
+            contract_code = r["contract_code"].upper()
+            contract_value = \
+                float(self._instrument_registry[contract_code].contract_value)
+            leverage = int(r["lever_rate"])
+            home_notional = volume * contract_value / last_price
+            if instrument_id:
+                if contract_code != instrument_id:
+                    continue
+                return Position(
                     exchange=self.exchange,
                     market=self.market,
                     instrument_id=instrument_id,
                     size=size,
-                    avg_entry_price=res["cost_hold"],
-                    realised_pnl=res["profit"],
-                    unrealised_pnl=res["profit_unreal"],
+                    avg_entry_price=avg_entry_price,
+                    realised_pnl=realised_pnl,
+                    unrealised_pnl=unrealised_pnl,
                     home_notional=home_notional,
-                    leverage=res["lever_rate"],
+                    leverage=leverage,
                 )
-        return pos
-
-    def get_margin(self, instrument_id: str) -> Margin:
-        assert instrument_id
-        instrument_id = instrument_id.upper()
-        symbol = self._instrument_registry[instrument_id].base_currency
+            
+            pos.append(Position(
+                exchange=self.exchange,
+                market=self.market,
+                instrument_id=contract_code,
+                size=size,
+                avg_entry_price=avg_entry_price,
+                realised_pnl=realised_pnl,
+                unrealised_pnl=unrealised_pnl,
+                home_notional=home_notional,
+                leverage=leverage,
+            ))
+        if pos:
+            return pos
+        return POSITION_EMPTY if instrument_id else []
+    
+    def get_margin(self, instrument_id: str = "") -> Union[List[Margin], Margin]:
+        if instrument_id:
+            instrument_id = instrument_id.upper()
+            symbol = self._instrument_registry[instrument_id].base_currency
+        else:
+            symbol = ""
         try:
             res = self._client.get_contract_account_info(symbol)
             assert res["status"] == "ok"
-            res = res["data"][0]
         except Exception as e:
             log.exception(e)
             raise MarginGetError
-            
-        margin_balance = float(res["margin_balance"])
-        unrealised_pnl = float(res["profit_unreal"])
-        wallet_balance = margin_balance - unrealised_pnl
-        return Margin(
-            exchange=self.exchange,
-            market=self.market,
-            instrument_id=instrument_id,
-            wallet_balance=wallet_balance,
-            unrealised_pnl=unrealised_pnl,
-            realised_pnl=res["profit_real"],
-            init_margin=res["margin_frozen"],
-            maint_margin=res["margin_position"],
-            margin_balance=margin_balance,
-            leverage=float(res["lever_rate"]),
-        )
+        ret = list()
+        for r in res["data"]:
+            margin_balance = float(r["margin_balance"])
+            unrealised_pnl = float(r["profit_unreal"])
+            wallet_balance = margin_balance - unrealised_pnl
+            if symbol:
+                if symbol.upper() != r["symbol"].upper():
+                    continue
+                return Margin(
+                    exchange=self.exchange,
+                    market=self.market,
+                    symbol=r["symbol"].upper(),
+                    wallet_balance=wallet_balance,
+                    unrealised_pnl=unrealised_pnl,
+                    realised_pnl=r["profit_real"],
+                    init_margin=r["margin_frozen"],
+                    maint_margin=r["margin_position"],
+                    margin_balance=margin_balance,
+                    leverage=float(r["lever_rate"]),
+                    liquidation_price=float(r["liquidation_price"] or float(
+                        "inf"))
+                )
+            ret.append(Margin(
+                exchange=self.exchange,
+                market=self.market,
+                symbol=r["symbol"].upper(),
+                wallet_balance=wallet_balance,
+                unrealised_pnl=unrealised_pnl,
+                realised_pnl=r["profit_real"],
+                init_margin=r["margin_frozen"],
+                maint_margin=r["margin_position"],
+                margin_balance=margin_balance,
+                leverage=float(r["lever_rate"]),
+                liquidation_price=float(r["liquidation_price"] or float("inf"))
+            ))
+        if ret:
+            return ret
+        return MARGIN_EMPTY if instrument_id else []
     
     def cancel_order(self, instrument_id: str, client_oid: str):
         assert instrument_id
@@ -734,8 +792,8 @@ class HuobiRestfulSpot(HuobiRestfulAdapter, market="spot"):
         else:
             price = float(res["price"])
             if price == 0.0:
-                price = float(res["field-amount"]) / \
-                        float(res["field-cash-amount"])
+                price = float(res["field-cash-amount"]) \
+                        / float(res["field-amount"])
             qty = float(res["field-amount"])
             side = self._get_order_side(res["type"])
             order_type = self.get_sys_order_type(res["type"])
@@ -745,7 +803,7 @@ class HuobiRestfulSpot(HuobiRestfulAdapter, market="spot"):
             status = self._get_sys_order_status(res["state"])
             return Order(
                 exchange=self.exchange, market=self.market, side=side,
-                pos_side=LONG, price=price, qty=qty,
+                pos_side=LONG, price=price, qty=qty, avg_entry_price=price,
                 leverage=float(res.get("lever_rate", DEFAULT_LEVERAGE)),
                 instrument_id=instrument_id, client_oid=client_order_id,
                 order_type=order_type, fee=fee, pnl=0, order_id=str(res["id"]),
@@ -779,7 +837,7 @@ class HuobiRestfulSpot(HuobiRestfulAdapter, market="spot"):
             return OrderType.LIMIT_FOK
         else:
             raise NotImplementedError
-
+    
     @staticmethod
     def _get_order_side(order_type: str) -> str:
         if order_type in (
@@ -815,7 +873,8 @@ class HuobiRestfulSpot(HuobiRestfulAdapter, market="spot"):
     def transfer_margin_to_asset(self, symbol: str, amount: float):
         raise NotImplementedError(f"margin to asset not avail in spot adapter")
     
-    def transfer_asset_to_future_margin(self, symbol: str, amount: float):
+    def transfer_asset_to_future_margin(
+        self, symbol: str, amount: float) -> float:
         amount = round_down(8, amount)
         try:
             res = self._client.transfer_asset_to_future_margin(symbol, amount)
@@ -825,8 +884,10 @@ class HuobiRestfulSpot(HuobiRestfulAdapter, market="spot"):
         except Exception as e:
             log.exception(e)
             raise e
+        return float(amount)
     
-    def transfer_asset_to_swap_margin(self, symbol: str, amount: float):
+    def transfer_asset_to_swap_margin(
+        self, symbol: str, amount: float) -> float:
         amount = round_down(8, amount)
         try:
             res = self._client.transfer_asset_to_swap_margin(symbol, amount)
@@ -836,6 +897,7 @@ class HuobiRestfulSpot(HuobiRestfulAdapter, market="spot"):
         except Exception as e:
             log.exception(e)
             raise e
+        return float(amount)
     
     def get_leverage(self, instrument_id: str):
         raise NotImplementedError
@@ -843,9 +905,11 @@ class HuobiRestfulSpot(HuobiRestfulAdapter, market="spot"):
     def set_leverage(self, instrument_id: str, lv: float):
         raise NotImplementedError
     
-    def get_available_balance(self, symbol: str) -> float:
-        assert symbol
-        symbol = symbol.lower()
+    def get_available_balance(
+        self, symbol: str = 0
+    ) -> Union[Dict[str, float], float]:
+        if symbol:
+            symbol = symbol.lower()
         try:
             res = self._client.get_accounts_balance(self._account_id)
             assert res["status"] == "ok"
@@ -853,13 +917,19 @@ class HuobiRestfulSpot(HuobiRestfulAdapter, market="spot"):
         except Exception as e:
             log.exception(e)
             raise BalanceGetError
+        ret = dict()
         for r in res:
-            if r["currency"] == symbol and r["type"] == "trade":
-                balance = float(r["balance"])
-                if balance < 0.00000001:
-                    balance = float(0)
+            currency, _type, balance = r["currency"], r["type"], r["balance"]
+            balance = float(balance)
+            if balance < 0.00000001:
+                balance = float(0)
+            if symbol:
+                if not (currency == symbol and _type == "trade"):
+                    continue
                 return balance
-        return 0
+            if _type == "trade":
+                ret[currency] = balance
+        return ret or float(0)
     
     def cancel_order(self, instrument_id: str, client_oid: str):
         return self._client.post_cancel_order_by_client_oid(client_oid)

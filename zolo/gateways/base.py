@@ -8,7 +8,6 @@ from ..consts import GATEWAY_HEARTBEAT, \
     GATEWAY_STOP, GATEWAY_UNSUBSCRIBE, \
     GATEWAY_SUBSCRIBE, GATEWAY_REBOOT, UNIX_EPOCH
 from ..dtypes import Message, GatewayConfig, ChannelConfig
-from .mq import UserMessageGateway
 from .timer import TimerGen
 
 
@@ -22,7 +21,6 @@ class GatewayManager:
     
     def __init__(self, q: Queue):
         self.q = q
-        self.ui = UserMessageGateway("*")
         self.timers = TimerGen()
     
     @classmethod
@@ -45,11 +43,7 @@ class GatewayManager:
     def start_timer(self):
         self.timers.start(self.q)
     
-    def start_messenger(self):
-        self.ui.start(self.q)
-        
     def stop(self):
-        self.ui.stop()
         self.timers.stop()
         for gateway in self.gateways.values():
             gateway.stop()

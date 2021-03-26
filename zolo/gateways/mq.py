@@ -1,42 +1,40 @@
+import json
 import time
 from dataclasses import dataclass, asdict
+from json import JSONDecodeError
 from threading import Thread
 import zmq
 import logging
-import pickle
 
-# from ..consts import RUNNING, INIT, STOPPED
-# from ..dtypes import Message
+from ..consts import RUNNING, INIT, STOPPED
+from ..dtypes import Message
 from queue import Queue, Empty
 
 from zolo.consts import USER_MSG_GATEWAY
 
 log = logging.getLogger(__name__)
-
-context = zmq.Context()
-socket = context.socket(zmq.PAIR)
-
-
-INIT = "INIT"
-RUNNING = "RUNNING"
-STOPPED = "STOPPED"
-
-
-@dataclass(frozen=True)
-class Message:
-    cmd: str
-    payload: dict
+#
+# INIT = "INIT"
+# RUNNING = "RUNNING"
+# STOPPED = "STOPPED"
+#
+#
+# @dataclass(frozen=True)
+# class Message:
+#     cmd: str
+#     payload: dict
 
 
-class UserMessageGateway:
+class ZmqGateway:
     
-    def __init__(self, end_point: str):
-        self._end_point = end_point
+    def __init__(self, host: str):
         self._state = INIT
         self._thread: Thread = None
-        self._z_poll = zmq.Poller()
-        self._z_poll.register(socket, zmq.POLLIN)
-        socket.bind(f"tcp://{self._end_point}:5555")
+        self._ctx = zmq.Context()
+        self._sock = self._ctx.socket(zmq.PAIR)
+        self._poller = zmq.Poller()
+        self._poller.register(self._sock, zmq.POLLIN)
+        self._sock.bind(f"{host}")
         super().__init__()
     
     @property
@@ -54,14 +52,17 @@ class UserMessageGateway:
         self._state = STOPPED
     
     def _poll_once(self):
-        res = self._z_poll.poll(timeout=1)
+        res = self._poller.poll(timeout=1)
         if not res:
             raise TimeoutError
-        msg: bytes = socket.recv()
+        msg: bytes = self._sock.recv()
         if msg:
-            msg = pickle.loads(msg)
-            print(f"{msg}")
-            return msg
+            try:
+                msg = json.loads(msg, encoding="utf8")
+                return Message(cmd=msg["cmd"], payload=msg["payload"])
+            except (KeyError, JSONDecodeError):
+                log.warning(f"invalid msg: {msg}")
+                return
         
         raise TimeoutError
     
@@ -73,7 +74,7 @@ class UserMessageGateway:
         if self.is_running:
             self._state = STOPPED
             self._thread.join(5)
-            self._z_poll.unregister(socket)
+            self._poller.unregister(self._sock)
             if self._state != STOPPED:
                 log.error("Try to stop failed!")
     
@@ -84,8 +85,9 @@ class UserMessageGateway:
 
 
 def main():
+    context = zmq.Context()
     q = Queue()
-    gw = UserMessageGateway("*")
+    gw = ZmqGateway("tcp://*:5555")
     gw.start(q)
     client = context.socket(zmq.PAIR)
     client.connect(USER_MSG_GATEWAY)
@@ -93,13 +95,13 @@ def main():
         try:
             msg = q.get(timeout=3)
         except Empty:
-            msg = pickle.dumps(
-                Message(
+            res = json.dumps(
+                asdict(Message(
                     "START",
                     dict(timeout=5)
-                )
-            )
-            client.send(msg)
+                ))
+            ).encode("utf8")
+            client.send(res)
         except KeyboardInterrupt:
             gw.stop()
             break

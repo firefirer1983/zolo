@@ -96,14 +96,6 @@ class TradingContext:
             )
             self._pool = OrderPool(self._adapter)
     
-    def set_leverage(self, lv: float):
-        self._leverage = lv
-        self._adapter.set_leverage(self.instrument_id, lv)
-    
-    def get_leverage(self) -> float:
-        self._leverage = self._adapter.get_leverage(self.instrument_id)
-        return self._leverage
-    
     @property
     def registry_scheme(self) -> str:
         return getattr(self._registry, "scheme")
