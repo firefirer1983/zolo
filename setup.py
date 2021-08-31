@@ -27,7 +27,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     install_requires=[
-        'huobi_restful',
+        'huobi_restful @ git+ssh://git@github.com/firefirer1983/huobi_restful.git@main#egg=huobi_restful',
         'SQLAlchemy==1.3.20',
     ],
     dependency_links=[
